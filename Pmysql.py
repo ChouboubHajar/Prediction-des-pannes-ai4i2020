@@ -1,179 +1,94 @@
-# pour manipuler le tableau (dataset)
+# Descriptive analytics and Predictive analytics
+
+# Import modules
 import pandas as pd
 from math import pi
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 from sklearn.preprocessing import StandardScaler
+import mysql.connector
 
-#Lire le dataset .csv
-df=pd.read_csv(r"c:\Users\Hajar\Downloads\ai4i+2020+predictive+maintenance+dataset\ai4i2020.csv")
-
-#Types
-#L (6000)    M (2997)    H (1003)
+#1/Load dataset
+df = pd.read_csv(r"c:\Users\Hajar\Downloads\ai4i+2020+predictive+maintenance+dataset\ai4i2020.csv")
 
 
+#2/Prepare data
+#2-1/ One-Hot Encoding for "Type"
+df["Type_L"] = (df["Type"] == "L").astype(int)
+df["Type_M"] = (df["Type"] == "M").astype(int)
+df["Type_H"] = (df["Type"] == "H").astype(int)
 
-#Changer les types de str ---->int pour le modele ia (il travaille que sur les int only)
-#Explication
-#[23:35, 29/01/2026] Hajar: Alors pourquoi on parle de 0 / 1 ?
-#UNIQUEMENT pour les modèles de Machine Learning
-#Parce que :
-#un algorithme ne comprend pas le texte
-# comprend seulement les nombres par contre POWER BI contient des nombres ,texte et categories
-#[23:36, 29/01/2026] Hajar: 4. Mais attention (très important)
-# Mauvais pour le ML
-#L = 0, M = 1, H = 2 (le dataset de mon projet)
-#Pourquoi ?
-# le modèle croit que H > M > L
-# souvent faux
-# Bon pour le ML
-#Transformer en plusieurs colonnes 0/1 :
-#Type_L  Type_M  Type_H
-#1       0       0
-#0       1       0
-#0       0       1
-#Ça s’appelle one-hot encoding.
-#5. Résumé en 3 lignes (à mémoriser)
-#Power BI → garder le texte
-# → garder le texte
-#Machine Learning → transformer en 0/1
-#6. Exemple ultra concret
-#Même donnée, deux usages :
-#Pour Power BI
-#Type = "Low"
-#Panne = "Panne"
-#Pour ML
-#Type_L = 1
-#Type_M = 0
-#Type_H = 0
-#Panne = 1
-df["Type_L"]=[1 if x=="L" else 0 for x in df["Type"]]
-df["Type_M"]=[1 if x=="M" else 0 for x in df["Type"]]
-df["Type_H"]=[1 if x=="H" else 0 for x in df["Type"]]
-
-#Supprimer la colonne Type
+#2-2/ Delete original column
 df = df.drop(columns=["Type"])
 
-#Ajout des colonnes utiles
-df["Temp_diff [K]"]=df["Process temperature [K]"]-df["Air temperature [K]"] 
-df["power_factor [W]"]=(2*pi*df["Rotational speed [rpm]"]/60)*df["Torque [Nm]"] 
-df['Tool_wear_norm [min]'] = df['Tool wear [min]'] / df['Tool wear [min]'].max()
+#2-3 Add derived features
+df["Temp_diff [K]"] = df["Process temperature [K]"] - df["Air temperature [K]"]
+df["power_factor [W]"] = (2*pi*df["Rotational speed [rpm]"]/60) * df["Torque [Nm]"]
+df["Tool_wear_norm [min]"] = df["Tool wear [min]"] / df["Tool wear [min]"].max()
+
+#2-4/ Define features (X) and target (y)
+X = df.drop(columns=["UDI", "Product ID", "Machine failure", "TWF", 'HDF', "OSF", "PWF", "RNF"])
+y = df["Machine failure"]
 
 
-#Partie du modele IA
-#le panne (Machine failure)
-#0 9661 (Pas de panne)
-#1 339  (Panne)
 
-#Types
-#L (6000)    M (2997)    H (1003)
-
-#Changer les types de str ---->int pour le modele ia (il travaille que sur les int only)
-#Explication
-#[23:35, 29/01/2026] Hajar: Alors pourquoi on parle de 0 / 1 ?
-#UNIQUEMENT pour les modèles de Machine Learning
-#Parce que :
-#un algorithme ne comprend pas le texte
-# comprend seulement les nombres par contre POWER BI contient des nombres ,texte et categories
-#[23:36, 29/01/2026] Hajar: 4. Mais attention (très important)
-# Mauvais pour le ML
-#L = 0, M = 1, H = 2 (le dataset de mon projet)
-#Pourquoi ?
-# le modèle croit que H > M > L
-# souvent faux
-# Bon pour le ML
-#Transformer en plusieurs colonnes 0/1 :
-#Type_L  Type_M  Type_H
-#1       0       0
-#0       1       0
-#0       0       1
-#Ça s’appelle one-hot encoding.
-#5. Résumé en 3 lignes (à mémoriser)
-#Power BI → garder le texte
-# → garder le texte
-#Machine Learning → transformer en 0/1
-#6. Exemple ultra concret
-#Même donnée, deux usages :
-#Pour Power BI
-#Type = "Low"
-#Panne = "Panne"
-#Pour ML
-#Type_L = 1
-#Type_M = 0
-#Type_H = 0
-#Panne = 1  
-
-#X les entrees y est la sortie 0/1 (panne/pas de panne)
-X=df.drop(columns=["UDI","Product ID","Machine failure","TWF",'HDF',"OSF","PWF","RNF"])
-y=df["Machine failure"]
-
-#Partie de ia
-# split
+#3/ Train and test split
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42
 )
-
-# normalisation
+# Normalize features
 scaler = StandardScaler()
 X_train = scaler.fit_transform(X_train)
 X_test = scaler.transform(X_test)
 
-# modèle amélioré
-model = LogisticRegression(
-    class_weight="balanced",
-    max_iter=300,
-    random_state=42
-)
 
-# entraînement
+#4/ Model training
+model = LogisticRegression(class_weight="balanced", max_iter=300, random_state=42)
 model.fit(X_train, y_train)
 
-# prédiction
-y_pred = model.predict(X_test)
 
-# évaluation
+#5/ Evaluation
+y_pred = model.predict(X_test)
 print("Accuracy:", accuracy_score(y_test, y_pred))
 print("Confusion Matrix:\n", confusion_matrix(y_test, y_pred))
 print(classification_report(y_test, y_pred))
-
-# coefficients
-print("Coefficients du modèle:", model.coef_)
-
-#Exporter le dataset 
-df.to_csv("dataset_projet_MySQL.csv",index=False)
+print("Coefficients:", model.coef_)
 
 
+#6/ Export historical dataset (ai4i2020) for Power BI
+df.to_csv("dataset_projet_MySQL.csv", index=False)
 
-#Predire les pannes sur des nouvelles donnees
-#Exemple de nouvelles observations ---
+
+#7/ Predict new data
+#7-1/ Create new data
 new_data = pd.DataFrame({
     "Air temperature [K]": [25, 30, 28, 27, 32],
-    "Process temperature [K]": [1375, 1380, 1578, 1377, 1285],
-    "Rotational speed [rpm]": [150, 100, 145, 150, 380],
+    "Process temperature [K]": [75, 80, 78, 77, 85],
+    "Rotational speed [rpm]": [1500, 1400, 1450, 1500, 1380],
     "Torque [Nm]": [10, 12, 11, 10, 13],
-    "Tool wear [min]": [234, 370, 190, 355, 280],
+    "Tool wear [min]": [50, 70, 60, 55, 80],
     "Type_L": [1, 0, 0, 1, 0],
     "Type_M": [0, 1, 0, 0, 1],
-    "Type_H": [0, 0, 1, 0, 0]   
+    "Type_H": [0, 0, 1, 0, 0]
 })
 
-# Calcul des colonnes supplémentaires comme dans le dataset 
+#7-2/ Derived features for new data
 new_data["Temp_diff [K]"] = new_data["Process temperature [K]"] - new_data["Air temperature [K]"]
 new_data["power_factor [W]"] = (2*pi*new_data["Rotational speed [rpm]"]/60) * new_data["Torque [Nm]"]
-new_data["Tool_wear_norm [min]"] = new_data["Tool wear [min]"] / df['Tool wear [min]'].max()  # même max que dataset historique
-# Normalisation avec scaler déjà entraîné
-new_data_scaled = scaler.transform(new_data)  # NE PAS faire fit_transform
-# Prédiction avec ton modèle 
-predictions = model.predict(new_data_scaled)
-probabilities = model.predict_proba(new_data_scaled)[:,1]  # probabilité de panne
-# Ajouter les résultats au DataFrame 
-new_data["Predicted_failure"] = predictions
-new_data["Failure_probability"] = probabilities
-# Export pour Power BI 
-new_data.to_csv("New_Observations_Predictions.csv", index=False)
-# Affichage rapide pour vérification
+new_data["Tool_wear_norm [min]"] = new_data["Tool wear [min]"] / df["Tool wear [min]"].max()
+
+#7-3/ Normalize new data
+new_data_scaled = scaler.transform(new_data)
+
+#7-4/ Predict
+new_data["Predicted_failure"] = model.predict(new_data_scaled)
+new_data["Failure_probability"] = model.predict_proba(new_data_scaled)[:,1]
+
+
+#8/ Display 
 print(new_data)
+
 
 
 
